@@ -1,7 +1,8 @@
 use image::GenericImageView;
+use indexmap::IndexSet;
 use regex::Regex;
 use serde::Deserialize;
-use std::{collections::HashMap, fs, path::PathBuf};
+use std::{fs, path::PathBuf};
 
 #[macro_use]
 extern crate lazy_static;
@@ -48,24 +49,17 @@ pub struct Config {
 }
 
 lazy_static! {
-    static ref COLORS: HashMap<(u8, u8, u8), u8> = {
-        let mut ans = HashMap::new();
+    static ref COLORS: IndexSet<(u8, u8, u8)> = {
+        let mut ans = IndexSet::new();
         let re = Regex::new(r"(?P<r>\d*) (?P<g>\d*) (?P<b>\d*)").unwrap();
 
-        for (id, row) in fs::read_to_string("./images/colors")
-            .unwrap()
-            .lines()
-            .enumerate()
-        {
+        for row in fs::read_to_string("./images/colors").unwrap().lines() {
             if let Some(caps) = re.captures(row) {
-                ans.insert(
-                    (
-                        caps["r"].parse::<u8>().unwrap(),
-                        caps["g"].parse::<u8>().unwrap(),
-                        caps["b"].parse::<u8>().unwrap(),
-                    ),
-                    id as u8,
-                );
+                ans.insert((
+                    caps["r"].parse::<u8>().unwrap(),
+                    caps["g"].parse::<u8>().unwrap(),
+                    caps["b"].parse::<u8>().unwrap(),
+                ));
             }
         }
 
@@ -88,7 +82,7 @@ fn read_image(path: PathBuf, extension: String) -> Board {
 
                 for j in 0..height {
                     let [r, g, b, _] = img.get_pixel(i, j).0;
-                    let color = COLORS.get(&(r, g, b)).unwrap().to_owned();
+                    let color = COLORS.get_index_of(&(r, g, b)).unwrap() as u8;
                     ans[i as usize].push(color);
                 }
             }

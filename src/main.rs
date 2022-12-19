@@ -62,7 +62,7 @@ async fn main() -> Result<()> {
                     let mut unfinished = VecDeque::new();
 
                     CONFIG.images.iter().enumerate().for_each(|(id, image)| {
-                        let mut cnt = 0;
+                        let mut tmp = VecDeque::new();
 
                         #[allow(clippy::needless_range_loop)]
                         for x in image.x..image.x + image.len_x {
@@ -71,13 +71,17 @@ async fn main() -> Result<()> {
                                 let image_color = image.data[x - image.x][y - image.y];
 
                                 if board_color != image_color {
-                                    unfinished.push_back((x, y, image_color));
-                                    cnt += 1;
+                                    tmp.push_back((x, y, image_color));
                                 }
                             }
                         }
 
-                        PBS[id].set_position((image.len_x * image.len_y - cnt) as u64);
+                        PBS[id].set_position((image.len_x * image.len_y - tmp.len()) as u64);
+
+                        if unfinished.len() < CONFIG.tokens.len() * 5 {
+                            fastrand::shuffle(tmp.make_contiguous());
+                            unfinished.append(&mut tmp);
+                        }
                     });
 
                     *UNFINISHED.lock().await = unfinished;
