@@ -34,6 +34,7 @@ pub struct DeserializeConfig {
     pub board_y: usize,
     pub fetch_interval: u64,
     pub paint_interval: u64,
+    pub max_concurrent_paint: usize,
 }
 
 #[derive(Clone, Debug)]
@@ -46,6 +47,7 @@ pub struct Config {
     pub board_y: usize,
     pub fetch_interval: u64,
     pub paint_interval: u64,
+    pub max_concurrent_paint: usize,
 }
 
 lazy_static! {
@@ -157,6 +159,7 @@ lazy_static! {
             board_y: config.board_y,
             fetch_interval: config.fetch_interval,
             paint_interval: config.paint_interval,
+            max_concurrent_paint: config.max_concurrent_paint,
         }
     };
 }

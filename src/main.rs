@@ -3,13 +3,11 @@ use futures_util::TryFutureExt;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use lazy_static::lazy_static;
 use luogu_paintboard::{char_to_color, Board, PaintResponse, CONFIG};
+use parking_lot::Mutex;
 use rayon::prelude::*;
 use reqwest::Client;
 use std::collections::VecDeque;
-use tokio::{
-    sync::Mutex,
-    time::{sleep, Duration},
-};
+use tokio::time::{sleep, Duration};
 
 #[macro_use]
 extern crate log;
@@ -43,8 +41,9 @@ async fn main() -> Result<()> {
         .init();
 
     let mut token_pos = 0;
+    let token_amount = CONFIG.tokens.len();
 
-    tokio::spawn(async {
+    tokio::spawn(async move {
         loop {
             let board_data = CLIENT
                 .get(&CONFIG.board_url)
@@ -78,13 +77,15 @@ async fn main() -> Result<()> {
 
                         PBS[id].set_position((image.len_x * image.len_y - tmp.len()) as u64);
 
-                        if unfinished.len() < CONFIG.tokens.len() * 5 {
+                        if unfinished.len() < token_amount * 5 {
                             fastrand::shuffle(tmp.make_contiguous());
                             unfinished.append(&mut tmp);
                         }
                     });
 
-                    *UNFINISHED.lock().await = unfinished;
+                    unfinished.truncate(token_amount * 5);
+
+                    *UNFINISHED.lock() = unfinished;
 
                     info!("successfully read borad");
                 }
@@ -96,20 +97,37 @@ async fn main() -> Result<()> {
     });
 
     loop {
-        let mut unfinished = UNFINISHED.lock().await;
+        let req: Vec<_>;
 
-        while !unfinished.is_empty() {
-            let (x, y, color) = unfinished.pop_front().unwrap();
+        {
+            let mut unfinished = UNFINISHED.lock();
+            let max_len = unfinished.len();
 
-            let params = [
-                ("x", x.to_string()),
-                ("y", y.to_string()),
-                ("color", color.to_string()),
-                ("uid", CONFIG.tokens[token_pos].uid.to_string()),
-                ("token", CONFIG.tokens[token_pos].token.to_string()),
-            ];
+            req = unfinished
+                .par_drain(..(token_amount - token_pos).min(max_len))
+                .enumerate()
+                .map(|(id, (x, y, color))| {
+                    [
+                        ("x", x.to_string()),
+                        ("y", y.to_string()),
+                        ("color", color.to_string()),
+                        ("uid", CONFIG.tokens[token_pos + id].uid.to_string()),
+                        ("token", CONFIG.tokens[token_pos + id].token.to_string()),
+                    ]
+                })
+                .collect();
+        }
 
-            tokio::spawn(async move {
+        token_pos += req.len();
+
+        if token_pos >= token_amount {
+            token_pos = 0;
+        }
+
+        let mut handles_cnt = 0;
+
+        for params in req {
+            let handle = tokio::spawn(async move {
                 if let Ok(res) = CLIENT.post(&CONFIG.paint_url).form(&params).send().await {
                     if let Ok(s) = res.text().await {
                         match serde_json::from_str::<PaintResponse>(&s) {
@@ -123,14 +141,13 @@ async fn main() -> Result<()> {
                 }
             });
 
-            token_pos += 1;
-            if token_pos >= CONFIG.tokens.len() {
-                token_pos = 0;
-                break;
+            handles_cnt += 1;
+
+            if handles_cnt >= CONFIG.max_concurrent_paint {
+                handle.await?;
+                handles_cnt = 0;
             }
         }
-
-        drop(unfinished);
 
         sleep(Duration::from_secs(CONFIG.paint_interval)).await;
     }

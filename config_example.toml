@@ -3,6 +3,7 @@ board_x = 1000 # 绘板最大 x 坐标（长）
 board_y = 600 # 绘板最大 y 坐标（宽）
 fetch_interval = 10 # 获取绘板间隔（秒）
 paint_interval = 1 # 一轮绘制间隔（秒）
+max_concurrent_paint = 1 # 最大并发绘制数量 
 
 tokens = [ # 按照如下格式填写
     { uid = 12345, token = "abcdefg" },

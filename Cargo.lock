@@ -681,6 +681,7 @@ dependencies = [
  "indicatif",
  "lazy_static",
  "log",
+ "parking_lot",
  "rayon",
  "regex",
  "reqwest",
