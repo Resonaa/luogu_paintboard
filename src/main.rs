@@ -6,7 +6,6 @@ use luogu_paintboard::{char_to_color, Board, PaintResponse, CONFIG};
 use parking_lot::Mutex;
 use rayon::prelude::*;
 use reqwest::Client;
-use std::collections::VecDeque;
 use tokio::time::{sleep, Duration};
 
 #[macro_use]
@@ -14,7 +13,7 @@ extern crate log;
 
 lazy_static! {
     static ref CLIENT: Client = Client::new();
-    static ref UNFINISHED: Mutex<VecDeque<(usize, usize, u8)>> = Mutex::new(VecDeque::new());
+    static ref UNFINISHED: Mutex<Vec<(usize, usize, u8)>> = Mutex::new(Vec::new());
     static ref PBS: Vec<ProgressBar> = {
         let mp = MultiProgress::new();
         let pb_style = ProgressStyle::with_template("{bar:40.cyan/blue} {pos:>7}/{len:7} {msg}")
@@ -58,10 +57,10 @@ async fn main() -> Result<()> {
                         .map(|row| row.as_bytes().to_vec())
                         .collect();
 
-                    let mut unfinished = VecDeque::new();
+                    let mut unfinished = Vec::new();
 
                     CONFIG.images.iter().enumerate().for_each(|(id, image)| {
-                        let mut tmp = VecDeque::new();
+                        let mut tmp = Vec::new();
 
                         #[allow(clippy::needless_range_loop)]
                         for x in image.x..image.x + image.len_x {
@@ -70,7 +69,7 @@ async fn main() -> Result<()> {
                                 let image_color = image.data[x - image.x][y - image.y];
 
                                 if board_color != image_color {
-                                    tmp.push_back((x, y, image_color));
+                                    tmp.push((x, y, image_color));
                                 }
                             }
                         }
@@ -78,7 +77,7 @@ async fn main() -> Result<()> {
                         PBS[id].set_position((image.len_x * image.len_y - tmp.len()) as u64);
 
                         if unfinished.len() < token_amount * 5 {
-                            fastrand::shuffle(tmp.make_contiguous());
+                            fastrand::shuffle(&mut tmp);
                             unfinished.append(&mut tmp);
                         }
                     });
